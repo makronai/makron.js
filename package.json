@@ -1,5 +1,5 @@
 {
-  "name": "makron.js",
+  "name": "makronjs",
   "version": "0.1.0",
   "description": "Unified JavaScript/TypeScript integration engine for hosted LLMs, local endpoints, browser runtimes, and ecosystem bridges.",
   "license": "MIT",
