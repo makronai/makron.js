@@ -1,0 +1,113 @@
+/**
+ * @license MIT
+ * Makron.js Hugging Face Repository Catalog
+ * Note: These are model repository candidates, not guarantees that every Hugging Face inference provider serves them.
+ * Sources: https://huggingface.co/inference/models, https://huggingface.co/docs/hub/models-inference
+ */
+
+import { ModelInfo } from '../../core/types';
+
+export const HUGGINGFACE_MODELS: ModelInfo[] = [
+  {
+    id: 'deepseek-ai/DeepSeek-V4.1-Flash-1017',
+    provider: 'huggingface',
+    displayName: 'DeepSeek V4.1 Flash (HF Repo)',
+    description: 'Hugging Face Hub repository for DeepSeek V4.1 Flash architecture.',
+    capabilities: {
+      chat: true,
+      streaming: true,
+      tools: true,
+      structuredOutput: true,
+      reasoning: true,
+    },
+    contextWindow: 65536,
+    maxOutputTokens: 8192,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    lifecycle: 'stable',
+    sourceURL: 'https://huggingface.co/inference/models',
+    verifiedAt: '2026-10-21',
+    availability: 'hosted',
+  },
+  {
+    id: 'meta-models/Muse-Spark-Open-816B-A42B',
+    provider: 'huggingface',
+    displayName: 'Muse Spark Open 816B A42B',
+    description: 'Extreme-scale open MoE architecture repository requiring dedicated inference endpoints.',
+    capabilities: {
+      chat: true,
+      streaming: true,
+      tools: true,
+      reasoning: true,
+    },
+    contextWindow: 131072,
+    maxOutputTokens: 8192,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    lifecycle: 'preview',
+    sourceURL: 'https://huggingface.co/inference/models',
+    verifiedAt: '2026-10-21',
+    availability: 'deployment',
+  },
+  {
+    id: 'Qwen/Qwen3.8-27B',
+    provider: 'huggingface',
+    displayName: 'Qwen 3.8 27B Hub Repo',
+    description: 'Community and dedicated inference container for Qwen 3.8 27B.',
+    capabilities: {
+      chat: true,
+      streaming: true,
+      tools: true,
+      structuredOutput: true,
+    },
+    contextWindow: 65536,
+    maxOutputTokens: 8192,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    lifecycle: 'stable',
+    sourceURL: 'https://huggingface.co/inference/models',
+    verifiedAt: '2026-10-21',
+    availability: 'hosted',
+  },
+  {
+    id: 'zai-org/GLM-5.3',
+    provider: 'huggingface',
+    displayName: 'GLM 5.3 Hub Repo',
+    description: 'Hugging Face hub weights and inference provider endpoints for GLM 5.3.',
+    capabilities: {
+      chat: true,
+      streaming: true,
+      tools: true,
+      structuredOutput: true,
+    },
+    contextWindow: 128000,
+    maxOutputTokens: 8192,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    lifecycle: 'stable',
+    sourceURL: 'https://huggingface.co/inference/models',
+    verifiedAt: '2026-10-21',
+    availability: 'hosted',
+  },
+  {
+    id: 'openai/gpt-oss-120b',
+    provider: 'huggingface',
+    displayName: 'GPT-OSS 120B Hub Repo',
+    description: 'Weights repository for open-weight GPT-OSS 120B.',
+    capabilities: {
+      chat: true,
+      streaming: true,
+      tools: true,
+      structuredOutput: true,
+      reasoning: true,
+    },
+    contextWindow: 128000,
+    maxOutputTokens: 16384,
+    inputModalities: ['text'],
+    outputModalities: ['text'],
+    lifecycle: 'stable',
+    sourceURL: 'https://huggingface.co/inference/models',
+    verifiedAt: '2026-10-21',
+    availability: 'deployment',
+  },
+];

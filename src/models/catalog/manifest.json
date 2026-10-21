@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0.0",
+  "catalogUpdatedAt": "2026-10-21T00:00:00Z",
+  "totalModels": 52,
+  "providers": [
+    "openai",
+    "gemini",
+    "anthropic",
+    "xai",
+    "groq",
+    "deepseek",
+    "qwen",
+    "zai",
+    "huggingface",
+    "ollama",
+    "transformers-js",
+    "webllm",
+    "mistral",
+    "cohere"
+  ],
+  "verificationSource": "official_documentation_and_api_discovery"
+}

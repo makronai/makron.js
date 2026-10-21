@@ -1,0 +1,1742 @@
+# Master Engineering Prompt: Build and Launch `makron.js`
+
+Act as a Principal Staff Engineer, Open-Source Architect, TypeScript Library Maintainer, LLM Infrastructure Engineer, and AI Integration Specialist.
+
+Your task is to design, implement, test, document, and prepare for publication a production-quality, open-source JavaScript/TypeScript library named **`makron.js`**.
+
+Do not merely write a blueprint, a project proposal, a README, or a small demo. Create the actual project files, implement the core features, build the package, run the tests, verify the generated artifacts, and provide clear instructions for releasing it on the public npm registry.
+
+If you have access to a repository workspace and terminal, use them to implement the project directly. If you are operating in a chat-only environment, provide every necessary file with its complete contents, grouped into logical sections.
+
+---
+
+# 0. PROJECT IDENTITY, MISSION, AND ENGINEERING PRINCIPLES
+
+## 0.1 Project identity
+
+- **Project name:** `makron.js`
+- **Display name:** Makron.js
+- **Language:** TypeScript with modern JavaScript compatibility.
+- **Module formats:** ESM and CommonJS.
+- **Primary distribution:** npm.
+- **Runtime targets:** Node.js, modern browsers, and compatible JavaScript runtimes.
+- **License:** MIT, unless an explicit project decision specifies otherwise.
+- **Architecture:** Modular, provider-agnostic, capability-driven, and extensible.
+- **Build tooling:** tsup or an equally appropriate modern TypeScript bundler.
+- **Testing:** Vitest, TypeScript type checks, and integration tests.
+- **Documentation:** A professional README, focused guides, API references, executable examples, and integration matrices.
+
+Before finalizing package metadata, verify that the chosen npm package name is available and valid. Keep the repository identity `makron.js` even if publishing requires an alternative npm identifier such as `@makron-ai/core`. Do not silently rename the project.
+
+## 0.2 Core mission
+
+Build a unified JavaScript/TypeScript integration layer that makes it straightforward to connect, configure, switch between, and compose:
+
+- Hosted LLM providers.
+- OpenAI-compatible APIs.
+- Local model-serving endpoints.
+- Browser-native and WebGPU-accelerated models.
+- Model registries and capability discovery.
+- Embedding providers and rerankers.
+- Agent frameworks and workflow engines.
+- RAG pipelines and document-processing frameworks.
+- MCP clients and servers.
+- AI security and evaluation systems.
+- Observability and tracing platforms.
+- Memory systems and vector databases.
+- Automation platforms and external tools.
+
+The goal is to let developers adopt one consistent programming interface without pretending that every model, vendor, framework, or runtime implements the same features.
+
+Example of the intended developer experience:
+
+```ts
+import { createMakron } from "makron.js";
+
+const ai = createMakron({
+  provider: "openai",
+  apiKey: process.env.OPENAI_API_KEY,
+  model: "gpt-5-mini",
+});
+
+const result = await ai.chat({
+  messages: [
+    {
+      role: "user",
+      content: "Explain how a vector database works.",
+    },
+  ],
+});
+
+console.log(result.text);
+```
+
+Switching to an OpenAI-compatible local endpoint should require minimal configuration changes:
+
+```ts
+import { createMakron } from "makron.js";
+
+const ai = createMakron({
+  provider: "ollama",
+  baseURL: "http://localhost:11434/v1",
+  model: "gpt-oss:20b",
+});
+
+const result = await ai.chat({
+  messages: [
+    {
+      role: "user",
+      content: "Explain how a vector database works.",
+    },
+  ],
+});
+
+console.log(result.text);
+```
+
+For browser inference, the developer should import the browser-specific entry point and load an explicitly supported runtime and model.
+
+Do not force browser and server inference to have identical implementations. Give them a consistent public interface wherever the runtime supports the relevant capabilities.
+
+## 0.3 Non-negotiable engineering rules
+
+1. Use strict TypeScript and avoid `any` except where an external, untyped API makes it unavoidable and the exception is documented.
+2. Create complete implementations, not empty files, fake adapters, or TODO-only modules.
+3. Keep provider SDKs and large browser runtimes optional wherever practical.
+4. Avoid importing browser-only dependencies into Node.js entry points.
+5. Use capability detection instead of assuming universal feature support.
+6. Normalize requests and responses through documented interfaces.
+7. Preserve access to provider-specific features through typed escape hatches.
+8. Never hardcode API secrets or commit `.env` files.
+9. Do not claim an integration is implemented or verified unless the implementation and its tests demonstrate that.
+10. Distinguish mocked tests, live API tests, and manual compatibility checks.
+11. Do not invent model IDs, API endpoints, supported features, or provider capabilities.
+12. Keep provider model defaults separate from the mechanism that discovers currently available models.
+13. Never publish the package automatically as part of the initial implementation.
+14. Do not stop after presenting an architecture. Build the working project and report what was actually verified.
+
+---
+
+# 1. SYSTEM ARCHITECTURE AND PUBLIC API
+
+Design `makron.js` as a modular integration framework with a small core and independently loadable provider, runtime, and ecosystem adapters.
+
+## 1.1 Core modules
+
+Implement separate modules for:
+
+### A. Core client
+
+Responsibilities:
+
+- Create and configure a Makron client.
+- Resolve providers and runtime adapters.
+- Validate options.
+- Expose a unified chat API.
+- Expose streaming APIs.
+- Expose embedding and reranking APIs when supported.
+- Discover models and capabilities.
+- Normalize errors.
+- Support request cancellation with `AbortSignal`.
+- Apply configured timeout and retry policies.
+- Allow provider-specific configuration without polluting the global interface.
+
+### B. Core type system
+
+Create well-defined TypeScript types for:
+
+- Providers.
+- Model references.
+- Model metadata.
+- Model capabilities.
+- Message roles.
+- Text and multimodal content.
+- Tool definitions.
+- Tool calls and tool results.
+- Structured-output requests.
+- Chat completion results.
+- Streaming chunks.
+- Token usage.
+- Embedding vectors.
+- Reranking results.
+- Request options.
+- Runtime environments.
+- Adapter configuration.
+- Integration metadata.
+- Model discovery results.
+
+Use separate capability interfaces for chat, streaming, embeddings, reranking, tools, multimodal inputs, structured outputs, and other optional functionality.
+
+A model that does not support a capability must report that limitation explicitly. Never simulate a capability silently.
+
+### C. Adapter interfaces
+
+Implement documented interfaces such as:
+
+```ts
+export interface ChatAdapter {
+  chat(
+    request: ChatRequest,
+    options?: RequestOptions,
+  ): Promise<ChatResponse>;
+
+  stream?(
+    request: ChatRequest,
+    options?: RequestOptions,
+  ): AsyncIterable<ChatChunk>;
+
+  listModels?(
+    options?: RequestOptions,
+  ): Promise<ModelInfo[]>;
+}
+```
+
+This interface is illustrative. Refine it during implementation to support proper generics, consistent options, capability discovery, and normalized errors.
+
+Create additional interfaces for embedding, reranking, browser inference, MCP integrations, agent frameworks, observability, and memory.
+
+Do not put every feature into one enormous interface with dozens of mandatory methods.
+
+### D. Provider and integration registries
+
+Implement a provider registry and an integration registry.
+
+The registries must support:
+
+- Built-in adapters.
+- Custom adapters.
+- Custom model metadata.
+- Explicit provider configuration.
+- Optional dependency checks.
+- Capability discovery.
+- Provider-specific model aliases.
+- Adapter version metadata.
+- Useful errors for unknown or unavailable adapters.
+
+Developers must be able to add their own adapters without editing the Makron.js core.
+
+### E. Error handling
+
+Create a consistent error hierarchy with errors such as:
+
+- `MakronError`
+- `ConfigurationError`
+- `AuthenticationError`
+- `ProviderError`
+- `RateLimitError`
+- `RequestTimeoutError`
+- `RequestAbortedError`
+- `UnsupportedCapabilityError`
+- `ModelNotFoundError`
+- `AdapterNotFoundError`
+- `IntegrationDependencyError`
+- `ModelLoadError`
+
+Preserve HTTP status codes, provider error codes, retryability, and safe diagnostic context where available.
+
+Never include API keys or other secrets in error messages.
+
+## 1.2 Developer-facing API
+
+Provide a cohesive API resembling the following:
+
+```ts
+import {
+  createMakron,
+  defineProvider,
+  getProvider,
+  listProviders,
+  listModels,
+  getModelInfo,
+  supportsCapability,
+} from "makron.js";
+```
+
+Implement and document equivalent APIs for:
+
+- `chat()`
+- `stream()`
+- `embed()`
+- `rerank()`
+- `listModels()`
+- `getModelInfo()`
+- `getCapabilities()`
+- `supportsCapability()`
+- `registerProvider()`
+- `registerIntegration()`
+
+Only expose functions that have a meaningful implementation.
+
+Decide whether `embed()` and `rerank()` belong on the primary client or on specialized clients, and explain the trade-offs.
+
+Support per-request settings without requiring a new client instance:
+
+```ts
+const answer = await ai.chat({
+  model: "gpt-5-mini",
+  messages: [{ role: "user", content: "Hello!" }],
+  temperature: 0.3,
+  maxTokens: 500,
+  signal: AbortSignal.timeout(30_000),
+});
+```
+
+Use the appropriate provider-native option names under the hood. Do not pass unsupported settings through silently.
+
+Provide access to underlying SDK instances or native provider requests where appropriate, with explicit typing and documentation.
+
+---
+
+# 2. LLM PROVIDERS, ENDPOINTS, AND MODEL CATALOG
+
+This is a central feature of Makron.js.
+
+Build an extensible model catalog that supports model discovery, provider-specific aliases, capability metadata, local endpoints, and browser-compatible models.
+
+## 2.1 Direct hosted-provider adapters
+
+Create first-class provider modules for:
+
+1. OpenAI GPT.
+2. Anthropic Claude.
+3. Google Gemini.
+4. xAI Grok.
+5. Groq.
+6. DeepSeek.
+7. Alibaba Cloud Model Studio and Qwen.
+8. Z.ai and GLM.
+9. Hugging Face.
+10. Cohere.
+11. Meta Llama deployments, where an actual hosted endpoint is configured.
+12. Mistral AI.
+13. Azure OpenAI.
+14. Google Vertex AI, where appropriate.
+15. Custom OpenAI-compatible endpoints.
+
+Use official SDKs when they provide meaningful support. For providers that expose compatible APIs, consider a shared transport implementation with provider-specific configuration.
+
+Do not assume an OpenAI-compatible endpoint supports every OpenAI feature.
+
+Implement the correct authentication, endpoint configuration, response parsing, streaming behavior, tool calling, and error conversion for each adapter.
+
+## 2.2 OpenAI-compatible endpoint support
+
+The generic compatible adapter must support configurable:
+
+- `baseURL`.
+- API key.
+- Custom headers.
+- Model name.
+- Request timeout.
+- Retry policy.
+- Protocol selection.
+- HTTP client or fetch implementation.
+- Organization or project identifiers where relevant.
+- Provider-specific request options.
+
+Support common deployment patterns:
+
+| Deployment | Typical endpoint |
+|---|---|
+| OpenAI | `https://api.openai.com/v1` |
+| Groq | `https://api.groq.com/openai/v1` |
+| DeepSeek | `https://api.deepseek.com` |
+| Ollama | `http://localhost:11434/v1` |
+| vLLM | `http://localhost:8000/v1` |
+| Hugging Face dedicated endpoint | User-configured endpoint URL |
+| Z.ai | Region, account, and API-product-specific URL |
+
+Treat these as starting configurations, not universal guarantees. Verify the current official API documentation, especially for providers that offer multiple protocols or account-specific endpoints.
+
+Support chat-completion and Responses-style APIs as distinct protocols wherever needed. Do not blindly reuse endpoint paths across all vendors.
+
+Implement presets such as:
+
+```ts
+createMakron({
+  provider: "openai-compatible",
+  baseURL: "http://localhost:8000/v1",
+  apiKey: "optional-for-local-server",
+  model: "deployment-model-name",
+});
+```
+
+And a registered custom endpoint:
+
+```ts
+import { createMakron } from "makron.js";
+
+const ai = createMakron({
+  provider: "openai-compatible",
+  baseURL: process.env.CUSTOM_LLM_BASE_URL!,
+  apiKey: process.env.CUSTOM_LLM_API_KEY,
+  model: process.env.CUSTOM_LLM_MODEL!,
+});
+```
+
+Do not require an API key for a local service that does not need one.
+
+## 2.3 Model catalog design
+
+Implement the catalog in a dedicated module instead of scattering model IDs throughout adapter code.
+
+Each `ModelInfo` record should support fields such as:
+
+```ts
+interface ModelInfo {
+  id: string;
+  provider: string;
+  displayName?: string;
+  description?: string;
+
+  capabilities: {
+    chat?: boolean;
+    streaming?: boolean;
+    tools?: boolean;
+    structuredOutput?: boolean;
+    vision?: boolean;
+    audioInput?: boolean;
+    audioOutput?: boolean;
+    embeddings?: boolean;
+    reranking?: boolean;
+    reasoning?: boolean;
+  };
+
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  inputModalities?: string[];
+  outputModalities?: string[];
+
+  lifecycle?: "stable" | "preview" | "deprecated" | "unknown";
+  aliasOf?: string;
+
+  sourceURL?: string;
+  verifiedAt?: string;
+  availability?: "hosted" | "local" | "browser" | "deployment";
+}
+```
+
+Refine the schema where necessary, but keep it backward-compatible and easy to extend.
+
+The catalog must distinguish:
+
+- Model IDs.
+- Human-readable names.
+- Stable aliases.
+- Versioned model IDs.
+- Preview models.
+- Deprecated IDs.
+- Task-specific models.
+- Models available only through particular deployment regions or providers.
+- Model repositories from API model IDs.
+- Model IDs that are valid locally but not remotely hosted.
+
+Never assume that a Hugging Face repository ID is automatically callable from every inference provider.
+
+Never assume that a model listed in an Ollama registry is installed on the developer's machine.
+
+Never assume that a model supported by a browser runtime is compatible with a hosted vendor API.
+
+## 2.4 Initial vendor model IDs
+
+Use the following IDs as **initial catalog candidates**, not permanent promises of availability. Before implementing the defaults, check the current official catalog, endpoint protocol, lifecycle status, and feature support.
+
+Aim for four to five verified candidates per provider where that many useful current models exist. If a vendor exposes fewer current API models, keep the truthful shorter list instead of inventing IDs.
+
+### OpenAI
+
+Initial candidates:
+
+- `gpt-5.1`
+- `gpt-5-mini`
+- `gpt-5-nano`
+- `gpt-oss-120b`
+- `gpt-oss-20b`
+
+Verify current availability and distinguish hosted API models from open-weight models.
+
+Official source: https://platform.openai.com/docs/models
+
+### Google Gemini
+
+Initial candidates:
+
+- `gemini-3.8-flash`
+- `gemini-3.6-flash`
+- `gemini-3.1-pro-preview`
+- `gemini-3-flash-preview`
+- `gemini-embedding-001`
+
+Mark the embedding model as an embedding model, not as a general chat model. Check whether preview IDs remain active before including them.
+
+Official source: https://ai.google.dev/gemini-api/docs/models
+
+### xAI Grok
+
+Initial candidates:
+
+- `grok-4.7`
+- `grok-4.7-latest`
+- `grok-4.5`
+- `grok-4.5-latest`
+- `grok-4.3`
+
+Track aliases separately from fixed version IDs, and avoid creating duplicate user-facing choices without a reason.
+
+Official source: https://docs.x.ai/developers/models
+
+### Groq
+
+Initial candidates:
+
+- `openai/gpt-oss-120b`
+- `openai/gpt-oss-20b`
+- `openai/gpt-oss-safeguard-20b`
+- `qwen/qwen3.8-27b`
+- `minimaxai/minimax-m2.7`
+
+Check the currently supported production models and deprecation notices.
+
+The implementation should support live discovery through the provider's models endpoint, when credentials and access permit.
+
+Official sources:
+- https://console.groq.com/docs/models
+- https://console.groq.com/docs/deprecations
+
+### DeepSeek
+
+Use the currently documented API IDs as the authoritative seed list:
+
+- `deepseek-flash`
+- `deepseek-v4-pro`
+
+The current official list may expose fewer direct API IDs than other vendors. Do not pad this list with retired or unsupported model names just to reach five entries.
+
+Record alias behavior, actual served model information where known, and lifecycle status. Keep Hugging Face repositories and third-party-hosted deployments in their respective catalogs instead of mislabeling them as direct DeepSeek API IDs.
+
+Official sources:
+- https://api-docs.deepseek.com/api/list-models/
+- https://api-docs.deepseek.com/guides/search_fetch
+- https://api-docs.deepseek.com/updates/
+
+### Alibaba Cloud Model Studio / Qwen
+
+Initial candidates:
+
+- `qwen3.8-max`
+- `qwen3.8-flash`
+- `qwen3.7-plus`
+- `qwen3.8-27b`
+- `qwen3-coder-flash`
+
+Check regional availability, API protocol, model lifecycle, and whether the model requires a specific deployment scope.
+
+Official sources:
+- https://www.alibabacloud.com/help/en/model-studio/models
+- https://help.aliyun.com/en/model-studio/text-generation-model/
+
+### Z.ai / GLM
+
+Initial candidates:
+
+- `glm-5.3`
+- `glm-5.3-flash`
+- `glm-5.2`
+- `glm-5.1`
+- `glm-4.7`
+
+Verify the current general API endpoint and Coding Plan endpoint separately. Do not assume that credentials created for one product are valid for the other.
+
+Official sources:
+- https://docs.z.ai/
+- https://z.ai/
+
+### Hugging Face
+
+Seed the repository catalog with candidates such as:
+
+- `deepseek-ai/DeepSeek-V4.1-Flash-1017`
+- `meta-models/Muse-Spark-Open-816B-A42B`
+- `Qwen/Qwen3.8-27B`
+- `zai-org/GLM-5.3`
+- `openai/gpt-oss-120b`
+
+These are model repository candidates, not guarantees that every Hugging Face inference provider currently serves them.
+
+Track separately:
+- Hub repository availability.
+- Model task.
+- Model license and access restrictions.
+- Hosted inference availability.
+- Selected inference provider.
+- Dedicated endpoint requirements.
+
+Official sources:
+- https://huggingface.co/inference/models
+- https://huggingface.co/docs/hub/models-inference
+- https://huggingface.co/docs/huggingface_hub/guides/inference
+
+### Ollama
+
+Add convenient local-model examples such as:
+
+- `gpt-oss:20b`
+- `gpt-oss:120b`
+- `qwen3-coder:30b`
+- `mistral-small3.2:24b`
+- `gemma3n:e4b`
+
+Verify exact tags against the current Ollama library. Record approximate hardware requirements only when supported by reliable model metadata.
+
+Provide runtime discovery that checks which models are installed, where the local service exposes that capability.
+
+Do not download multi-gigabyte models automatically during package installation or unit tests.
+
+Official source: https://ollama.com/library
+
+## 2.5 Dynamic model discovery
+
+Implement provider-specific discovery methods whenever supported.
+
+The package must gracefully distinguish:
+
+1. The current remote model list.
+2. Locally installed models.
+3. Bundled default catalog entries.
+4. User-defined model entries.
+5. Browser runtime-supported models.
+6. Deployment-specific model IDs.
+
+Where a vendor supports an authenticated models API, use that endpoint instead of scraping documentation pages.
+
+Create a model-catalog synchronization command, for example:
+
+```bash
+npm run models:sync
+npm run models:validate
+```
+
+The synchronization tool should:
+
+- Fetch supported model lists where practical.
+- Use credentials from environment variables.
+- Never store secrets in generated files.
+- Validate IDs and metadata.
+- Retain source URLs and verification dates.
+- Flag additions, removals, and lifecycle changes.
+- Avoid automatically accepting unverified or deprecated models.
+- Produce a reviewable diff.
+- Have a dry-run mode.
+- Work without API credentials by validating bundled data.
+
+Include clear instructions explaining that model availability can depend on provider accounts, regions, quotas, API versions, and deployment configuration.
+
+---
+
+# 3. BROWSER-BASED, LOCAL, AND ONNX RUNTIMES
+
+Browser execution is a first-class requirement. Implement it as optional, environment-specific adapters rather than bundling every runtime into the core package.
+
+## 3.1 Transformers.js
+
+Create an adapter using the currently supported Hugging Face Transformers.js package and API.
+
+Cover:
+
+- Text generation.
+- Text embeddings.
+- Model loading and initialization.
+- Progress reporting where supported.
+- WebGPU and CPU/WASM execution settings.
+- Model cache behavior.
+- Browser compatibility checks.
+- Cancellation, disposal, and memory considerations.
+- Task-specific model pipelines.
+
+Candidate model repositories to verify include:
+
+- `onnx-community/Phi-3.5-mini-instruct`
+- `onnx-community/Llama-3.2-1B-Instruct`
+- `onnx-community/SmolLM2-1.7B-Instruct`
+- `onnx-community/SmolLM2-360M-Instruct`
+- `mixedbread-ai/mxbai-embed-xsmall-v1`
+
+Verify the exact repository IDs, tasks, ONNX artifacts, licenses, and runtime compatibility before adding them to the shipped catalog.
+
+Do not assume that every model supported by the wider Hugging Face ecosystem is executable in Transformers.js.
+
+Official source: https://huggingface.co/docs/transformers.js
+
+## 3.2 WebLLM
+
+Build a dedicated adapter for `@mlc-ai/web-llm`.
+
+Support:
+
+- Engine initialization.
+- Supported prebuilt model selection.
+- Model-download progress.
+- Streaming generation where supported.
+- Cancellation where supported.
+- Engine lifecycle and disposal.
+- WebGPU compatibility detection.
+- Memory and device requirements.
+- Explicit unsupported-feature reporting.
+
+Seed the initial catalog with package-specific IDs such as:
+
+- `Llama-3.2-1B-Instruct-q4f32_1-MLC`
+- `Llama-3.2-1B-Instruct-q4f16_1-MLC`
+- `Llama-3.2-3B-Instruct-q4f16_1-MLC`
+- `SmolLM2-1.7B-Instruct-q4f16_1-MLC`
+- `SmolLM2-360M-Instruct-q0f16-MLC`
+
+Verify every entry against the currently installed WebLLM version's actual prebuilt configuration.
+
+Do not treat ordinary Hugging Face model IDs as interchangeable with WebLLM's compiled model identifiers.
+
+Official sources:
+- https://github.com/mlc-ai/web-llm
+- https://github.com/mlc-ai/web-llm/blob/main/src/config.ts
+
+## 3.3 Wllama
+
+Create an optional adapter for `@wllama/wllama`.
+
+Support:
+
+- GGUF model loading.
+- URLs, locally supplied files, or other officially supported model-loading mechanisms.
+- Loading progress where available.
+- Text generation.
+- Streaming where supported.
+- Embeddings where supported by the current API.
+- Worker-based execution.
+- Model unloading and resource cleanup.
+- Multimodal features and tool calling only when supported by the installed runtime and chosen model.
+
+Treat the GGUF artifact, file URL, repository, quantization, and model license as explicit configuration.
+
+Do not fabricate universal built-in Wllama model IDs. Provide at least four curated model configurations only if their actual GGUF artifacts, licenses, compatibility, and download locations have been verified.
+
+Document any cross-origin isolation headers required for multithreaded execution.
+
+Official sources:
+- https://github.com/ngxson/wllama
+- https://github.ngxson.com/wllama/docs/
+
+## 3.4 ONNX Runtime Web
+
+Create an optional adapter for `onnxruntime-web`.
+
+This adapter must represent generic ONNX inference, not pretend that raw ONNX Runtime is automatically a text-generation framework.
+
+Support appropriate model-loading and tensor interfaces, execution-provider selection, and cleanup. Explain that text generation generally requires a compatible model architecture, tokenizer, pre/post-processing pipeline, and generation loop, unless a higher-level library provides them.
+
+Support suitable execution providers, including WASM and WebGPU where the installed runtime and browser support them. Treat WebNN support as version- and environment-dependent.
+
+If the adapter cannot expose ordinary chat generation for an arbitrary ONNX model, report that limitation clearly.
+
+Official sources:
+- https://onnxruntime.ai/docs/tutorials/web/
+- https://onnxruntime.ai/docs/get-started/with-javascript/web.html
+
+## 3.5 Browser runtime rules
+
+For every browser adapter:
+
+- Import the heavy dependency lazily.
+- Provide a runtime-specific entry point.
+- Keep Node.js imports free of browser-global side effects.
+- Handle unsupported browsers gracefully.
+- Avoid automatic model downloads at package import time.
+- Document cross-origin requirements.
+- Avoid exposing server API credentials in browser code.
+- Check cancellation and cleanup behavior.
+- Allow applications to provide a model URL or supported model ID.
+- Do not assume WebGPU is present on every device.
+
+Provide a browser example that demonstrates local inference without a hosted API key.
+
+---
+
+# 4. INTEGRATION ECOSYSTEM
+
+Makron.js must provide a common integration contract for external AI frameworks and infrastructure.
+
+**Do not reinvent the external products.** Integrate through their official APIs, SDKs, and extension points. Separate working adapters from generic compatibility and documentation-only recipes.
+
+Create `docs/INTEGRATIONS.md` containing every technology listed below. For each, show its category, integration mode, dependency requirements, support level, and the exact steps required to connect it.
+
+Use these support labels:
+
+- **Built-in:** Included and tested in the core package.
+- **Optional adapter:** Implemented in an independently importable module.
+- **Compatible endpoint:** Connectable through a documented generic protocol.
+- **Integration recipe:** Working example or instructions using the vendor's own supported interfaces.
+- **Community:** Not officially tested by Makron.js.
+- **Planned:** Not implemented; do not present it as functional.
+
+## 4.1 LLMs
+
+Account for:
+
+- OpenAI GPT.
+- Anthropic Claude.
+- Google Gemini.
+- Meta Llama.
+- Mistral AI.
+- Cohere.
+
+## 4.2 LLM platforms
+
+Account for:
+
+- Hugging Face.
+- Ollama.
+- vLLM.
+
+## 4.3 Agentic AI and workflow frameworks
+
+Account for:
+
+- LangGraph.
+- CrewAI.
+- Microsoft AutoGen.
+- Microsoft Agent Framework.
+- LlamaIndex Workflows.
+- AWS Strands Agents.
+- CAMEL.
+- Agno.
+
+## 4.4 RAG and retrieval frameworks
+
+Account for:
+
+- LangChain.
+- LlamaIndex.
+- Haystack.
+- DSPy.
+- RAGFlow.
+- GraphRAG.
+- Unstructured.
+- EmbedChain.
+
+## 4.5 Embedding providers and models
+
+Account for:
+
+- OpenAI Embeddings.
+- Cohere Embed.
+- Voyage AI.
+- Sentence Transformers.
+- BGE.
+- Google Vertex AI Embeddings.
+- Azure OpenAI Embeddings.
+
+## 4.6 MCP
+
+Account for:
+
+- MCP SDK.
+- FastMCP.
+- MCP Registry.
+- GitHub MCP server.
+- Slack MCP Server.
+- PostgreSQL MCP server.
+- Google Drive MCP server.
+- Filesystem MCP server.
+
+## 4.7 AI security and guardrails
+
+Account for:
+
+- NVIDIA NeMo Guardrails.
+- Guardrails AI.
+- Microsoft Presidio.
+- Lakera Guard.
+- Prompt Security.
+- Protect AI.
+- Azure AI Content Safety.
+- AWS Bedrock Guardrails.
+
+## 4.8 Observability and evaluation
+
+Account for:
+
+- LangSmith.
+- Langfuse.
+- Arize Phoenix.
+- Weights & Biases Weave.
+- TruLens.
+- Ragas.
+- Promptfoo.
+- Helicone.
+
+## 4.9 Memory systems
+
+Account for:
+
+- Mem0.
+- Zep.
+- Letta.
+- LangGraph memory.
+- Redis.
+- PostgreSQL.
+- Neo4j.
+- Chroma.
+
+## 4.10 Agent SDKs and services
+
+Account for:
+
+- OpenAI Agents SDK.
+- LangChain Agents.
+- PydanticAI.
+- Semantic Kernel.
+- Google ADK.
+- AWS Bedrock Agents.
+- Azure AI Foundry Agent Service.
+
+## 4.11 Automation platforms
+
+Account for:
+
+- n8n.
+- Zapier.
+- Make.
+- Microsoft Power Automate.
+- Temporal.
+- Apache Airflow.
+- Prefect.
+- Kestra.
+- Pipedream.
+
+## 4.12 Vector databases
+
+Account for:
+
+- Pinecone.
+- Weaviate.
+- Qdrant.
+- Milvus.
+- Chroma.
+- pgvector.
+- Elasticsearch.
+- Redis.
+- MongoDB Atlas Vector Search.
+
+## 4.13 Integration implementation requirements
+
+Create:
+
+- A typed integration registry.
+- An adapter registration API.
+- An optional-dependency validation mechanism.
+- A compatibility and capabilities matrix.
+- A set of tested example integrations.
+- Documentation for every listed technology.
+- Explicit version and protocol requirements.
+- A clear distinction between direct integrations and endpoint-level compatibility.
+
+Use optional peer dependencies wherever that is a better design than forcing every user to install all frameworks.
+
+Prioritize a genuinely working first-party foundation for core LLM providers, local and browser runtimes, embeddings, MCP, and the most useful framework bridges.
+
+For technologies whose APIs require separate processes, cloud accounts, remote infrastructure, or credentials, provide runnable integration recipes and tests that can run with mocks. Do not claim the package itself replaces those services.
+
+Avoid creating dozens of nearly identical adapters that duplicate the same HTTP transport logic. Reuse the core transport and capability interfaces where appropriate.
+
+---
+
+# 5. REQUIRED DIRECTORY STRUCTURE
+
+Create a complete, logically organized project. Adapt the tree if implementation details require it, but account for every responsibility shown below.
+
+```text
+makron.js/
+├── .changeset/
+│   └── config.json
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   └── feature_request.yml
+│   ├── workflows/
+│   │   ├── ci.yml
+│   │   ├── codeql.yml
+│   │   └── release.yml
+│   ├── CONTRIBUTING.md
+│   └── SECURITY.md
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── API.md
+│   ├── PROVIDERS.md
+│   ├── MODEL-CATALOG.md
+│   ├── BROWSER-RUNTIMES.md
+│   ├── SECURITY.md
+│   ├── ERROR-HANDLING.md
+│   ├── STREAMING.md
+│   ├── EMBEDDINGS.md
+│   ├── MCP.md
+│   ├── INTEGRATIONS.md
+│   ├── FRAMEWORK-ADAPTERS.md
+│   ├── TROUBLESHOOTING.md
+│   ├── COMPATIBILITY.md
+│   └── PUBLISHING.md
+├── examples/
+│   ├── node/
+│   │   ├── openai.ts
+│   │   ├── gemini.ts
+│   │   ├── anthropic.ts
+│   │   ├── groq.ts
+│   │   ├── deepseek.ts
+│   │   ├── qwen.ts
+│   │   ├── zai.ts
+│   │   ├── huggingface.ts
+│   │   ├── ollama.ts
+│   │   ├── vllm.ts
+│   │   ├── streaming.ts
+│   │   ├── embeddings.ts
+│   │   ├── tools.ts
+│   │   └── custom-provider.ts
+│   ├── browser/
+│   │   ├── transformers-js.ts
+│   │   ├── webllm.ts
+│   │   ├── wllama.ts
+│   │   └── onnx-runtime.ts
+│   ├── integrations/
+│   │   ├── langchain.ts
+│   │   ├── langgraph.ts
+│   │   ├── llamaindex.ts
+│   │   ├── pydantic-ai.md
+│   │   ├── mcp-client.ts
+│   │   └── vector-store.ts
+│   └── .env.example
+├── scripts/
+│   ├── check-package-name.ts
+│   ├── sync-model-catalog.ts
+│   ├── validate-model-catalog.ts
+│   ├── check-exports.ts
+│   ├── check-optional-dependencies.ts
+│   └── release-check.ts
+├── src/
+│   ├── index.ts
+│   ├── core/
+│   │   ├── client.ts
+│   │   ├── types.ts
+│   │   ├── errors.ts
+│   │   ├── capabilities.ts
+│   │   ├── messages.ts
+│   │   ├── request-options.ts
+│   │   ├── response-normalizer.ts
+│   │   ├── stream-normalizer.ts
+│   │   ├── retry.ts
+│   │   ├── timeout.ts
+│   │   └── validation.ts
+│   ├── providers/
+│   │   ├── index.ts
+│   │   ├── registry.ts
+│   │   ├── base.ts
+│   │   ├── openai-compatible.ts
+│   │   ├── openai.ts
+│   │   ├── anthropic.ts
+│   │   ├── gemini.ts
+│   │   ├── xai.ts
+│   │   ├── groq.ts
+│   │   ├── deepseek.ts
+│   │   ├── qwen.ts
+│   │   ├── zai.ts
+│   │   ├── huggingface.ts
+│   │   ├── ollama.ts
+│   │   ├── vllm.ts
+│   │   ├── mistral.ts
+│   │   └── cohere.ts
+│   ├── browser/
+│   │   ├── index.ts
+│   │   ├── browser-capabilities.ts
+│   │   ├── transformers-js.ts
+│   │   ├── webllm.ts
+│   │   ├── wllama.ts
+│   │   └── onnx-runtime.ts
+│   ├── models/
+│   │   ├── index.ts
+│   │   ├── types.ts
+│   │   ├── registry.ts
+│   │   ├── discovery.ts
+│   │   ├── aliases.ts
+│   │   └── catalog/
+│   │       ├── index.ts
+│   │       ├── openai.ts
+│   │       ├── gemini.ts
+│   │       ├── xai.ts
+│   │       ├── groq.ts
+│   │       ├── deepseek.ts
+│   │       ├── qwen.ts
+│   │       ├── zai.ts
+│   │       ├── huggingface.ts
+│   │       ├── ollama.ts
+│   │       ├── webllm.ts
+│   │       ├── transformers-js.ts
+│   │       └── manifest.json
+│   ├── capabilities/
+│   │   ├── index.ts
+│   │   ├── chat.ts
+│   │   ├── streaming.ts
+│   │   ├── embeddings.ts
+│   │   ├── tools.ts
+│   │   └── structured-output.ts
+│   ├── embeddings/
+│   │   ├── index.ts
+│   │   ├── types.ts
+│   │   └── normalize.ts
+│   ├── integrations/
+│   │   ├── index.ts
+│   │   ├── registry.ts
+│   │   ├── types.ts
+│   │   ├── langchain.ts
+│   │   ├── langgraph.ts
+│   │   ├── llamaindex.ts
+│   │   ├── vercel-ai.ts
+│   │   ├── mcp.ts
+│   │   ├── memory.ts
+│   │   ├── observability.ts
+│   │   └── vector-store.ts
+│   ├── utils/
+│   │   ├── env.ts
+│   │   ├── fetch.ts
+│   │   ├── logger.ts
+│   │   ├── redact.ts
+│   │   └── json.ts
+│   └── version.ts
+├── tests/
+│   ├── unit/
+│   │   ├── client.test.ts
+│   │   ├── errors.test.ts
+│   │   ├── registry.test.ts
+│   │   ├── capabilities.test.ts
+│   │   ├── messages.test.ts
+│   │   ├── streaming.test.ts
+│   │   ├── retry.test.ts
+│   │   └── catalog.test.ts
+│   ├── providers/
+│   │   ├── openai-compatible.test.ts
+│   │   ├── openai.test.ts
+│   │   ├── anthropic.test.ts
+│   │   ├── gemini.test.ts
+│   │   ├── ollama.test.ts
+│   │   └── model-discovery.test.ts
+│   ├── browser/
+│   │   ├── browser-capabilities.test.ts
+│   │   └── adapter-loading.test.ts
+│   ├── integrations/
+│   │   ├── registry.test.ts
+│   │   └── bridge-contracts.test.ts
+│   ├── fixtures/
+│   └── types/
+│       └── public-api.test-d.ts
+├── .editorconfig
+├── .env.example
+├── .gitignore
+├── .npmignore
+├── CHANGELOG.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE
+├── README.md
+├── SUPPORT.md
+├── SECURITY.md
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── tsconfig.build.json
+├── tsup.config.ts
+├── vitest.config.ts
+├── eslint.config.js
+├── prettier.config.js
+├── .prettierignore
+└── .npmrc
+```
+
+This tree is the baseline, not permission to leave files empty. Add or consolidate modules where warranted, but ensure that every advertised feature maps to real, tested implementation or is clearly labeled as a documented future integration.
+
+Avoid committing generated dependency artifacts or credentials.
+
+---
+
+# 6. IMPLEMENTATION REQUIREMENTS FOR THE ACTUAL SOURCE FILES
+
+Implement the project in dependency order.
+
+## 6.1 Core types and normalization
+
+Implement the following first:
+
+- Message and content types.
+- Request and response types.
+- Provider interfaces.
+- Capability metadata.
+- Error hierarchy.
+- Stream normalization.
+- Response normalization.
+- Configuration validation.
+- Cancellation and timeout handling.
+
+Define clear rules for handling differences in usage data, tool calls, finish reasons, structured output, and provider error formats.
+
+Ensure that normalized responses preserve provider-specific information when it is useful and safe.
+
+## 6.2 First-party provider adapters
+
+Implement working adapters for the supported providers, prioritizing:
+
+1. OpenAI.
+2. Generic OpenAI-compatible endpoints.
+3. Anthropic.
+4. Gemini.
+5. xAI.
+6. Groq.
+7. DeepSeek.
+8. Qwen.
+9. Z.ai.
+10. Hugging Face.
+11. Ollama.
+12. vLLM.
+
+Add Mistral and Cohere adapters in the same modular design.
+
+If two providers share the same protocol, reuse transport code while preserving their differences in configuration, authentication, model discovery, and supported features.
+
+Each first-party provider needs:
+
+- Configuration types.
+- Default endpoints where officially documented.
+- Authentication.
+- Correct request serialization.
+- Response normalization.
+- Streaming support when available.
+- Tool calling when supported.
+- Error mapping.
+- Model discovery where available.
+- Documentation.
+- Mocked tests.
+- Optional live tests.
+
+Do not overstate feature compatibility.
+
+## 6.3 Browser adapters
+
+Use lazy loading and optional dependencies for all browser runtimes. Each adapter must have its own lifecycle and error handling.
+
+Implement actual supported behavior first. When an engine only provides an embedding or general inference interface, do not make its API appear to be a full chat endpoint.
+
+## 6.4 Registry and plugin registration
+
+Allow developers to register a provider without changing the library source.
+
+For example:
+
+```ts
+import {
+  createMakron,
+  defineProvider,
+} from "makron.js";
+
+const customProvider = defineProvider({
+  id: "my-provider",
+  create: (config) => {
+    // Return an adapter conforming to Makron's public contract.
+    return createCustomAdapter(config);
+  },
+});
+
+const ai = createMakron({
+  provider: customProvider,
+  model: "custom-model",
+});
+```
+
+This is an API illustration; implement the appropriate real types and function contracts.
+
+Add tests proving that a custom adapter can be registered, selected, invoked, and removed or replaced safely if the public API supports that operation.
+
+---
+
+# 7. BUILD, PACKAGING, EXPORTS, AND DEPENDENCIES
+
+## 7.1 Dual module output
+
+Configure tsup or a suitable alternative to generate:
+
+- ESM JavaScript.
+- CommonJS JavaScript.
+- TypeScript declaration files.
+- Correct browser-specific entry points.
+- Stable source maps where appropriate.
+
+Test both module formats independently.
+
+Use `.js` for ESM and `.cjs` for CommonJS output when appropriate under the selected package configuration.
+
+Do not mark the package as dual-format without verifying actual output and consumer behavior.
+
+## 7.2 `package.json`
+
+Create a complete production-ready `package.json` with:
+
+- `name`
+- `version`
+- `description`
+- `keywords`
+- `license`
+- `author`
+- `repository`
+- `homepage`
+- `bugs`
+- `funding`, if applicable
+- `type`
+- `main`
+- `module`
+- `types`
+- `exports`
+- `files`
+- `engines`
+- `scripts`
+- `dependencies`
+- `devDependencies`
+- `peerDependencies`
+- `peerDependenciesMeta`
+
+Configure explicit exports for the root package and supported subpaths. The following illustrates the intended contract:
+
+```json
+{
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js",
+      "require": "./dist/providers/index.cjs"
+    },
+    "./browser": {
+      "types": "./dist/browser/index.d.ts",
+      "import": "./dist/browser/index.js"
+    },
+    "./models": {
+      "types": "./dist/models/index.d.ts",
+      "import": "./dist/models/index.js",
+      "require": "./dist/models/index.cjs"
+    }
+  }
+}
+```
+
+Adapt these paths to the actual build output. Do not publish an export pointing to a file that was never created.
+
+Add provider- or runtime-specific exports where they improve compatibility.
+
+Keep the root entry point lightweight. Do not import the complete browser runtime ecosystem simply because it is listed in the package's peer dependencies.
+
+## 7.3 Dependencies
+
+Choose stable, compatible versions only after checking the current ecosystem documentation and package metadata.
+
+Keep heavy or specialized dependencies optional when feasible:
+
+- Provider SDKs.
+- Transformers.js.
+- WebLLM.
+- Wllama.
+- ONNX Runtime Web.
+- Agent frameworks.
+- MCP packages.
+- Observability exporters.
+
+Use lazy imports and clear dependency-missing errors.
+
+Do not bundle model weights into the published npm package.
+
+## 7.4 Build verification
+
+Create scripts for:
+
+```bash
+npm run build
+npm run typecheck
+npm run test
+npm run lint
+npm run format:check
+npm run check:exports
+npm run models:validate
+```
+
+Add a combined verification command that exits nonzero if any required check fails.
+
+Inspect the final package using:
+
+```bash
+npm pack --dry-run
+```
+
+If practical, create a temporary consumer project and verify actual ESM and CommonJS imports from the packed tarball.
+
+---
+
+# 8. TESTING, QUALITY ASSURANCE, AND SECURITY
+
+## 8.1 Automated tests
+
+Use Vitest and add comprehensive tests for:
+
+- Provider registration.
+- Client initialization.
+- Configuration validation.
+- Message normalization.
+- Response normalization.
+- Streaming chunk parsing.
+- Tool call normalization.
+- Embedding results.
+- Model catalog validation.
+- Retry and timeout behavior.
+- Cancellation.
+- Error mapping.
+- Missing optional dependencies.
+- Lazy browser imports.
+- Both module formats.
+- Public TypeScript declaration compatibility.
+- Integration adapter contracts.
+
+Mock external HTTP calls in ordinary tests. Unit tests must not require paid API keys.
+
+Provide optional live tests gated behind explicit environment variables and a documented opt-in command.
+
+## 8.2 Quality gates
+
+Before considering the project ready for release, verify:
+
+1. TypeScript builds without errors.
+2. All mandatory unit tests pass.
+3. The lint and format checks pass.
+4. Package exports resolve to real files.
+5. Both ESM and CommonJS usage work.
+6. Browser modules do not accidentally break Node.js imports.
+7. Core installation does not download model weights.
+8. Optional dependencies produce useful error messages when absent.
+9. Model catalog metadata passes validation.
+10. No secrets are present in the repository or build output.
+
+Report any unverified checks honestly.
+
+## 8.3 Security requirements
+
+Implement and document:
+
+- Environment-based secret handling.
+- Secret redaction in errors and logs.
+- Safe logging defaults.
+- Request cancellation.
+- Configurable timeouts.
+- Bounded retries with jitter.
+- Respect for `Retry-After` where appropriate.
+- HTTP response size limits where appropriate.
+- Validation of remote and local endpoint URLs.
+- Safe handling of user-configured base URLs.
+- Avoidance of unintended server-side request forgery.
+- Clear trust boundaries around user-supplied model URLs and remote MCP servers.
+- No automatic code execution from model responses.
+- No automatic execution of model-generated tool calls without an explicit tool runner and application authorization.
+- No arbitrary filesystem or network access granted to agents by default.
+
+Explain that browser inference protects prompts from being sent to a hosted inference endpoint only when the selected execution path actually runs locally. Model downloads can still contact remote artifact hosts.
+
+Do not encourage embedding privileged provider API keys in frontend JavaScript.
+
+---
+
+# 9. DOCUMENTATION, EXAMPLES, AND API REFERENCE
+
+Write a complete, professional README with:
+
+1. Project overview.
+2. Value proposition.
+3. Major supported features.
+4. Installation.
+5. Quick start.
+6. Hosted-model example.
+7. OpenAI-compatible endpoint example.
+8. Ollama example.
+9. Streaming example.
+10. Embedding example.
+11. Custom provider example.
+12. Browser runtime examples.
+13. Model catalog and discovery.
+14. Integration ecosystem.
+15. Environment variable setup.
+16. Error handling.
+17. Security guidance.
+18. API reference.
+19. Development setup.
+20. Tests and build commands.
+21. Publishing instructions.
+22. Contributing and support.
+23. License.
+
+Keep the README accurate. Every copied example must correspond to an actual exported API.
+
+Create `.env.example` with illustrative variable names only:
+
+```dotenv
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+GEMINI_API_KEY=
+XAI_API_KEY=
+GROQ_API_KEY=
+DEEPSEEK_API_KEY=
+QWEN_API_KEY=
+ZAI_API_KEY=
+HF_TOKEN=
+COHERE_API_KEY=
+
+OLLAMA_BASE_URL=http://localhost:11434
+VLLM_BASE_URL=http://localhost:8000/v1
+```
+
+Document the environment variable actually read by each provider and the required endpoint configuration. Do not assume every vendor uses the same environment variable convention.
+
+Provide runnable examples for hosted and local inference, streaming, embeddings, custom providers, and at least two browser runtimes.
+
+Create a troubleshooting guide covering:
+
+- Authentication failures.
+- Unknown model IDs.
+- Deprecated models.
+- Incompatible base URLs.
+- CORS failures.
+- WebGPU incompatibility.
+- Browser memory exhaustion.
+- Missing peer dependencies.
+- Unsupported tools or modalities.
+- Streaming connection interruptions.
+- Rate limits.
+
+Provide API documentation with parameter types, return types, examples, and actual support limitations.
+
+---
+
+# 10. AUTOMATION, CI/CD, NPM RELEASE, AND MAINTENANCE
+
+## 10.1 Git and repository setup
+
+Create the appropriate `.gitignore`, `.npmignore`, `.editorconfig`, formatting and lint configurations, license, code of conduct, contribution guide, security policy, support guide, and changelog.
+
+Keep the published file list intentional. Use the `files` field in `package.json` to include only necessary artifacts.
+
+## 10.2 CI workflow
+
+Create GitHub Actions workflows for:
+
+- Dependency installation.
+- Linting.
+- Formatting validation.
+- Type checking.
+- Unit tests.
+- Production build.
+- Export verification.
+- Model catalog validation.
+- Package tarball checks.
+
+Pin GitHub Actions to appropriate versions or immutable commit SHAs according to the repository's maintenance policy.
+
+Use the package lockfile in CI.
+
+Add scheduled or manually triggered model-catalog validation if it can be done reliably without secrets. Do not make normal builds dependent on an external provider's model API being reachable.
+
+## 10.3 Publishing readiness
+
+Document the full local release process, including:
+
+```bash
+npm ci
+npm run lint
+npm run format:check
+npm run typecheck
+npm run test
+npm run build
+npm run check:exports
+npm run models:validate
+npm pack --dry-run
+```
+
+Include instructions for checking the package name and metadata before a first release.
+
+Explain safe npm authentication, two-factor authentication, access-token restrictions, and provenance-enabled publishing where supported.
+
+Prefer trusted publishing through GitHub Actions and npm's supported OIDC workflow rather than a long-lived personal publishing token when the project setup supports it.
+
+If token-based publishing is necessary, document it as a fallback with least-privilege credentials and secure storage.
+
+Provide a step-by-step public publishing checklist:
+
+1. Confirm the package name and license.
+2. Inspect the production package contents.
+3. Verify the installed package in a clean consumer project.
+4. Tag and create a GitHub release.
+5. Authenticate securely with npm.
+6. Publish using the appropriate public access setting.
+7. Verify the published version and package contents.
+8. Test installation from npm.
+9. Update the changelog and release notes.
+
+Include commands such as:
+
+```bash
+npm whoami
+npm view makron.js
+npm pack --dry-run
+npm publish --access public
+```
+
+Adapt the package name to the validated npm identifier. Do not execute the final publishing command during initial project setup without explicit authorization to publish.
+
+## 10.4 Maintenance policy
+
+Document:
+
+- Semantic versioning.
+- Deprecation policy.
+- Provider API changes.
+- Model ID changes.
+- Model catalog verification.
+- Supported Node.js and browser versions.
+- Optional dependency compatibility.
+- Security vulnerability reporting.
+- Release notes.
+- Breaking-change management.
+
+Ensure that model catalog updates do not unexpectedly introduce breaking changes to stable aliases or silently remove existing entries from the public API.
+
+---
+
+# 11. EXACT DELIVERABLES AND ACCEPTANCE CRITERIA
+
+Work through the project in implementation order and provide the following results.
+
+## Deliverable A: Architecture
+
+Produce an architecture document describing the core, providers, browser runtimes, model catalog, integrations, and error handling.
+
+Explain the boundaries between direct provider support, OpenAI-compatible transports, local endpoints, and browser inference.
+
+## Deliverable B: Complete working codebase
+
+Create all files required for the selected implementation.
+
+Every source module must contain working code or an explicitly justified minimal implementation. Do not leave empty adapter files disguised as completed integrations.
+
+## Deliverable C: Production package
+
+Generate ESM, CommonJS, and declaration files with valid package exports.
+
+Confirm that the package can be packed into an npm tarball.
+
+## Deliverable D: Validated provider and runtime examples
+
+Provide examples that accurately reflect the implemented API.
+
+Validate all bundled model IDs, and include source references and verification timestamps.
+
+Distinguish live tests from tests using mocks.
+
+## Deliverable E: Integration matrix
+
+Document every ecosystem in Section 4 and mark its actual support level.
+
+Provide working integration examples for the integrations implemented in this release and practical recipes for the remaining targets.
+
+## Deliverable F: Test report
+
+Run the required quality checks. Report:
+
+- Commands executed.
+- Checks passed.
+- Checks failed.
+- Any environment-dependent checks not performed.
+- Any integrations requiring credentials or external services.
+
+Never claim that a test passed unless it actually ran successfully.
+
+## Deliverable G: Release instructions
+
+Produce a complete `PUBLISHING.md` and an npm publishing checklist that another developer can follow from a fresh clone.
+
+## Deliverable H: Final handoff
+
+Finish with a concise implementation report containing:
+
+- The main files created.
+- The supported package entry points.
+- Implemented providers and runtimes.
+- Implemented and documented integrations.
+- Build and test results.
+- Any remaining limitations.
+- Exact commands required to install, test, build, and prepare a release.
+
+---
+
+# 12. EXECUTION STRATEGY
+
+Follow this sequence.
+
+### Phase 1 — Discovery
+
+Inspect the available repository and development environment. Verify current official API documentation, SDK compatibility, runtime requirements, and model catalogs. Check npm package-name availability.
+
+Resolve uncertainties by inspecting primary sources, not by inventing API behavior.
+
+### Phase 2 — Architecture
+
+Finalize the typed API, provider interfaces, module boundaries, error model, and capability registry.
+
+Define a small, coherent first-release scope that is genuinely implementable while ensuring that the architecture can accommodate all integration targets.
+
+### Phase 3 — Core implementation
+
+Build the core client, types, provider registry, normalization layer, and tests.
+
+Get at least one hosted provider and one OpenAI-compatible endpoint fully working before adding further adapters.
+
+### Phase 4 — Provider and runtime expansion
+
+Implement the remaining provider adapters, model discovery, catalog validation, and browser runtimes.
+
+Keep specialized dependencies optional.
+
+### Phase 5 — Ecosystem integrations
+
+Implement the highest-value framework bridges. Add the full integration matrix and evidence-based examples for every other integration target.
+
+### Phase 6 — Documentation and quality assurance
+
+Build the README, API reference, examples, automated checks, and contributor documentation.
+
+Run tests and fix failures rather than merely reporting them.
+
+### Phase 7 — Package verification
+
+Build the dual-format package, check generated declarations, verify exports, and inspect the npm tarball.
+
+### Phase 8 — Release readiness
+
+Complete the publishing documentation and release checklist. Do not publish without explicit authorization.
+
+## Final instruction
+
+**Start implementing the project now. Do not respond with only a plan or ask unnecessary follow-up questions.**
+
+Prioritize a solid core, working adapters, reliable packaging, and honest integration support over a superficially impressive number of provider names.
+
+At the end, deliver the actual codebase or complete file contents, build and test results, documentation, and exact next commands needed to prepare `makron.js` for its first public npm release.
+
