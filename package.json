@@ -6,6 +6,8 @@
   "type": "module",
   "main": "./dist-package/index.cjs",
   "module": "./dist-package/index.js",
+  "keywords": [],
+  "author": "dwmk",
   "types": "./dist-package/index.d.ts",
   "exports": {
     ".": {
