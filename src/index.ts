@@ -126,5 +126,61 @@ export {
   InMemoryVectorStore,
 } from './integrations';
 
+// Ready-to-Use Components & Built-in Functionalities
+export {
+  createAgent,
+  Agent,
+  calculatorTool,
+  dateTimeTool,
+  jsonParserTool,
+  textProcessingTool,
+  webSearchTool,
+  standardTools,
+  createRagPipeline,
+  RagPipeline,
+  RecursiveCharacterTextSplitter,
+  createFallbackChain,
+  FallbackChain,
+  ConversationSession,
+  TokenBudgetMemory,
+  createSession,
+  PromptTemplate,
+  ChatPromptTemplate,
+  SystemPrompts,
+  extractJson,
+  repairJson,
+  createStructuredParser,
+  collectStreamWithStats,
+  StreamSentenceBuffer,
+  ContentGuard,
+  createContentGuard,
+} from './components';
+
+export type {
+  AgentConfig,
+  AgentStep,
+  AgentRunResult,
+  AgentTool,
+  ExecutableTool,
+  StandardTool,
+  DocumentInput,
+  ChunkDocument,
+  TextSplitterOptions,
+  RagPipelineConfig,
+  RagQueryResult,
+  Citation,
+  FallbackChainConfig,
+  FallbackClient,
+  FallbackEvent,
+  SessionConfig,
+  SessionClient,
+  StructuredParser,
+  StreamStats,
+  GuardrailOptions,
+  GuardrailResult,
+  PiiDetection,
+} from './components';
+
 // Package Version
 export { VERSION, PACKAGE_NAME, DISPLAY_NAME } from './version';
+

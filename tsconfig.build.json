@@ -12,5 +12,5 @@
     "strict": false
   },
   "include": ["src/**/*", "src/types/ambient.d.ts"],
-  "exclude": ["node_modules", "dist", "dist-package", "tests", "src/App.tsx", "src/main.tsx"]
+  "exclude": ["node_modules", "dist", "dist-package", "tests"]
 }

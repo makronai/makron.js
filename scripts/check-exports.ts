@@ -17,7 +17,7 @@ export function checkExports() {
     process.exit(1);
   }
 
-  const expectedSubpaths = ['.', './providers', './browser', './models', './integrations'];
+  const expectedSubpaths = ['.', './providers', './browser', './models', './integrations', './components'];
   let missing = 0;
 
   for (const subpath of expectedSubpaths) {

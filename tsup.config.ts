@@ -7,6 +7,7 @@ export default defineConfig({
     'browser/index': 'src/browser/index.ts',
     'models/index': 'src/models/index.ts',
     'integrations/index': 'src/integrations/index.ts',
+    'components/index': 'src/components/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: false,
